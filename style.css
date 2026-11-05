@@ -1,0 +1,256 @@
+/* 主題可以覆蓋的顏色：在主題的自訂 CSS 裡，於 :root 定義下面這些 --tr-* 就會換掉。
+   沒定義的就用逗號後面的預設值（多半是 ST 本身的主題色）。
+     --tr-panel          視窗底色
+     --tr-border         視窗、句子框的細框
+     --tr-text           視窗文字
+     --tr-muted          提示小字
+     --tr-active         選中的按鈕、句子底色
+     --tr-active-border  選中的按鈕、句子框線
+     --tr-backdrop       視窗後面的遮罩
+     --tr-sel-btn        反白圖示的底圓
+     --tr-sel-btn-ring   反白圖示的外圈
+     --tr-radius         視窗圓角 */
+
+/* 反白後出現在第一個字左上方的圖示 */
+#taiwanreporter_sel_btn {
+    display: none;
+    position: fixed;
+    z-index: 10000;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: var(--tr-sel-btn, rgba(255, 255, 255, 0.92)) url('icon.png') center / 22px no-repeat;
+    box-shadow: 0 0 0 1.5px var(--tr-sel-btn-ring, transparent), 0 1px 4px rgba(0, 0, 0, 0.35);
+    cursor: pointer;
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+/* 訊息「⋯」選單裡的按鈕，跟其他 mes_button 一樣大 */
+.mes_button.taiwanreporter_mes_btn {
+    width: 1.1em;
+    height: 1.1em;
+    background: url('icon.png') center / contain no-repeat;
+}
+
+/* 設定欄關掉時，訊息選單裡的按鈕也藏起來 */
+.taiwanreporter_off .taiwanreporter_mes_btn {
+    display: none !important;
+}
+
+/* 擴充頁面裡的設定欄 */
+.taiwanreporter_settings .inline-drawer-content {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.taiwanreporter_s_tagline {
+    opacity: 0.8;
+}
+
+.taiwanreporter_s_lang_row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.taiwanreporter_s_lang_row select {
+    flex: 1;
+    margin: 0;
+}
+
+/* <dialog> 本身撐滿畫面，當作遮罩 */
+#taiwanreporter_overlay {
+    width: 100vw;
+    height: 100dvh;
+    max-width: none;
+    max-height: none;
+    margin: 0;
+    padding: 12px;
+    border: 0;
+    box-sizing: border-box;
+    background: var(--tr-backdrop, rgba(0, 0, 0, 0.7));
+    color: inherit;
+}
+
+#taiwanreporter_overlay[open] {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#taiwanreporter_overlay::backdrop {
+    background: transparent;
+}
+
+.taiwanreporter_panel {
+    background: var(--tr-panel, var(--SmartThemeBlurTintColor, #222));
+    color: var(--tr-text, var(--SmartThemeBodyColor, #ddd));
+    border: 1px solid var(--tr-border, var(--SmartThemeBorderColor, #444));
+    border-radius: var(--tr-radius, 10px);
+    padding: 12px;
+    max-width: 520px;
+    width: 100%;
+    max-height: 100%;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    overflow: auto;
+    outline: none;
+}
+
+/* 寬高由 JS 照版型比例算好寫進去，不靠 auto，免得在 flex 裡被壓扁 */
+.taiwanreporter_canvas {
+    flex: none;
+    align-self: center;
+    border-radius: 6px;
+    touch-action: none;
+    cursor: grab;
+}
+
+/* 存到相簿用的成品圖：要讓 iPhone 長按跳出「加入照片」 */
+.taiwanreporter_saveimg {
+    flex: none;
+    align-self: center;
+    border-radius: 6px;
+    -webkit-touch-callout: default;
+    -webkit-user-select: auto;
+    user-select: auto;
+    pointer-events: auto;
+}
+
+/* 編輯用的控制項包一層，存圖時整包藏起來 */
+.taiwanreporter_panel > .taiwanreporter_edit {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.taiwanreporter_hint,
+.taiwanreporter_title {
+    font-size: 0.85em;
+    line-height: 1.2;
+    color: var(--tr-muted, inherit);
+    opacity: 0.85;
+    text-align: center;
+}
+
+.taiwanreporter_row {
+    display: flex;
+    flex-wrap: nowrap;
+    justify-content: center;
+    gap: 6px;
+}
+
+/* ST 的按鈕是 width: min-content，中文會一字一行變成直的；這裡改成橫排、照字數撐開 */
+/* 每排固定一列：按鈕平分寬度，字數多的稍微寬一點 */
+.taiwanreporter_row .menu_button,
+.taiwanreporter_buttons .menu_button {
+    width: auto;
+    flex: 1 1 auto;
+    min-width: 0;
+    white-space: nowrap;
+    justify-content: center;
+    padding: 6px 4px;
+    margin: 0;
+}
+
+/* 版型和選項擠在同一排，按鈕間距、字都收小一點 */
+.taiwanreporter_toggles {
+    gap: 4px;
+}
+
+.taiwanreporter_toggles .menu_button {
+    padding: 3px 2px;
+    font-size: 0.9em;
+}
+
+/* 版型三顆和選項之間空大一點，看得出是兩組 */
+.taiwanreporter_toggles [data-layout="card"] {
+    margin-right: 6px;
+}
+
+/* 「字體：」「色調：」標籤跟下拉選單排在同一列 */
+.taiwanreporter_selects {
+    align-items: center;
+}
+
+.taiwanreporter_selects span {
+    flex: none;
+    white-space: nowrap;
+}
+
+/* 下拉選單 ST 預設比較高，收矮一點 */
+.taiwanreporter_selects select {
+    height: auto;
+    min-height: 0;
+    padding-top: 2px;
+    padding-bottom: 2px;
+}
+
+.taiwanreporter_selects span + select {
+    margin-right: 6px;
+}
+
+.taiwanreporter_selects select:last-child {
+    margin-right: 0;
+}
+
+.taiwanreporter_row select {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+}
+
+/* 主題常對 .menu_button 的底色下 !important，選中狀態也要 !important 才看得出來 */
+.taiwanreporter_toggle.active {
+    background: var(--tr-active, rgba(180, 170, 230, 0.4)) !important;
+    border-color: var(--tr-active-border, rgba(200, 190, 245, 0.95)) !important;
+    filter: none;
+}
+
+.taiwanreporter_slider {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.9em;
+}
+
+.taiwanreporter_slider span {
+    flex: none;
+    width: 4.5em;
+}
+
+.taiwanreporter_slider input {
+    flex: 1;
+}
+
+.taiwanreporter_buttons {
+    display: flex;
+    flex-wrap: nowrap;
+    justify-content: center;
+    gap: 6px;
+}
+
+.taiwanreporter_list {
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.taiwanreporter_item {
+    padding: 8px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--tr-border, var(--SmartThemeBorderColor, #444));
+    cursor: pointer;
+    line-height: 1.5;
+}
+
+.taiwanreporter_item.selected {
+    background: var(--tr-active, rgba(180, 170, 230, 0.25));
+    border-color: var(--tr-active-border, rgba(180, 170, 230, 0.9));
+}
