@@ -42,7 +42,7 @@ const LAYOUTS = {
 const { extensionSettings, saveSettingsDebounced } = SillyTavern.getContext();
 // 上次選的樣式記下來，下次開卡沿用；位置、字級每次重來
 const saved = extensionSettings[MODULE] = Object.assign(
-    { enabled: true, lang: 'auto', layout: 'portrait', light: false, mono: false, flip: false, bold: false, font: 'Noto Sans TC', theme: 'none', footer: 0 },
+    { enabled: true, lang: 'auto', layout: 'portrait', light: false, mono: false, flip: false, bold: false, font: 'Noto Sans TC', theme: 'none', footer: 0, customFonts: [] },
     extensionSettings[MODULE]);
 
 // ---------- 介面文字（中文、英文各一份） ----------
@@ -50,7 +50,10 @@ const saved = extensionSettings[MODULE] = Object.assign(
 const STR = {
     'zh-tw': {
         name: '台灣記者', tagline: '那傢伙剛剛說那句話了！', enable: '啟用', language: '語言', langAuto: '跟著 ST',
-        send: '交給台灣記者', hint: '拖動圖片可以調整背景位置', hintSave: '長按圖片，選「加入照片」', back: '返回編輯',
+        fonts: '自訂字體', upload: '上傳字體', uploadHint: '支援 TTF、OTF、WOFF、WOFF2。上傳後會出現在做卡面板「字體」清單的最後面。',
+        uploading: '上傳中…', uploaded: '已加入字體：', badFont: '這個檔案不是能用的字體', uploadFail: '上傳失敗：',
+        remove: '刪除', removeAsk: f => `要刪除字體「${f}」嗎？`, removed: '已刪除字體：', noFonts: '還沒有上傳字體',
+        send: '交給台灣記者', breakEdit: '換行編輯', breakHint: '只能換行：在想斷的地方按換行', hint: '拖動圖片可以調整背景位置', hintSave: '長按圖片，選「加入照片」', back: '返回編輯',
         layouts: { portrait: '直幅', classic: '橫幅', card: '卡片' },
         light: '白底', mono: '黑白', bold: '粗體', flip: '左右側',
         font: '字體：', theme: '色調：', footer: '標語：', footerNone: '不加', model: '（模型）',
@@ -63,7 +66,10 @@ const STR = {
     },
     en: {
         name: 'Taiwan Reporter', tagline: 'They just said it!', enable: 'Enabled', language: 'Language', langAuto: 'Follow ST',
-        send: 'Send to Taiwan Reporter', hint: 'Drag the image to move the background', hintSave: 'Long-press the image and choose “Save to Photos”', back: 'Back to editing',
+        fonts: 'Custom fonts', upload: 'Upload font', uploadHint: 'TTF, OTF, WOFF or WOFF2. Uploaded fonts appear at the end of the Font list in the card panel.',
+        uploading: 'Uploading…', uploaded: 'Font added: ', badFont: 'This file is not a usable font', uploadFail: 'Upload failed: ',
+        remove: 'Delete', removeAsk: f => `Delete the font “${f}”?`, removed: 'Font deleted: ', noFonts: 'No fonts uploaded yet',
+        send: 'Send to Taiwan Reporter', breakEdit: 'Line breaks', breakHint: 'Line breaks only: press Enter where you want a new line', hint: 'Drag the image to move the background', hintSave: 'Long-press the image and choose “Save to Photos”', back: 'Back to editing',
         layouts: { portrait: 'Portrait', classic: 'Wide', card: 'Card' },
         light: 'Light', mono: 'B&W', bold: 'Bold', flip: 'Flip',
         font: 'Font:', theme: 'Tint:', footer: 'Tagline:', footerNone: 'None', model: '(model)',
@@ -109,8 +115,22 @@ function speakerOf(mesEl) {
 
 // ---------- 字型 ----------
 
+// 自己上傳的字體：family 是內部代號（TRFont_時間），label 是上傳時的檔名，path 是 ST 檔案區的位置
+const customFont = family => saved.customFonts.find(f => f.family === family);
+const allFonts = () => [...FONTS, ...saved.customFonts.map(f => [f.family, f.label])];
+
 const fontLinks = new Set();
 async function ensureFont(family, text, bold) {
+    const custom = customFont(family);
+    if (custom) {
+        if (!fontLinks.has(family)) {
+            fontLinks.add(family);
+            const face = new FontFace(family, `url("${custom.path}")`);
+            document.fonts.add(face);
+            await Promise.race([face.load().catch(() => {}), new Promise(r => setTimeout(r, 15000))]);
+        }
+        return;
+    }
     if (!fontLinks.has(family)) {
         fontLinks.add(family);
         const link = document.createElement('link');
@@ -153,17 +173,47 @@ function wrap(ctx, text, maxW) {
     return lines;
 }
 
+// 台詞框只准動換行：可見的字要跟原文一模一樣（不然回傳 null）；
+// 每個字縫用原文的間隔，使用者在那裡打了換行才換成換行；把原文的換行刪掉時，中文接起來、英文補一個空格
+function onlyBreaks(original, typed) {
+    const split = s => {
+        const chars = [], seps = [];
+        let sep = '';
+        for (const ch of s) {
+            if (/\s/.test(ch)) { sep += ch; continue; }
+            chars.push(ch); seps.push(sep); sep = '';
+        }
+        return { chars, seps };
+    };
+    const o = split(original), t = split(typed);
+    if (o.chars.join('') !== t.chars.join('')) return null;
+    let out = '';
+    o.chars.forEach((ch, i) => {
+        if (i) {
+            const breaks = (t.seps[i].match(/\n/g) || []).length;
+            if (breaks) out += '\n'.repeat(breaks);
+            else if (o.seps[i].includes('\n')) out += isCJK(o.chars[i - 1]) || isCJK(ch) ? '' : ' ';
+            else out += o.seps[i];
+        }
+        out += ch;
+    });
+    return out;
+}
+
 const fontOf = (st, size, weight) => `${weight ?? (st.opts.bold ? 700 : 400)} ${size}px "${st.opts.font}", ${FALLBACK}`;
 
-// 字太多就縮小，直到不超過 maxLines 行
+// 字太多就縮小，直到不超過 maxLines 行；
+// 使用者在台詞框自己斷過行，還要縮到每一行都放得下、不被自動折開（縮到最小還放不下才折）
 function layoutText(ctx, st, size, maxW, maxLines) {
+    const manual = st.manualBreaks && st.quote.includes('\n');
+    const want = st.quote.split('\n').length;
     let lines;
-    do {
+    for (;;) {
         ctx.font = fontOf(st, size);
         lines = wrap(ctx, st.quote, maxW);
-        if (lines.length <= maxLines) break;
+        if ((lines.length <= maxLines && (!manual || lines.length === want)) || size <= 28) break;
         size -= 4;
-    } while (size > 28);
+    }
     return { lines, size, lh: Math.round(size * 1.5) };
 }
 
@@ -409,21 +459,23 @@ async function openCard(quote, mesEl) {
     quote = quote.replace(/\s*\n\s*/g, '\n').trim();
     if (!quote) return;
     const { name, url, model } = speakerOf(mesEl);
-    // 字型名稱：中文介面用中文名，英文介面用字型本來的英文名
-    const fontLabel = (f, l) => (lang() === 'zh-tw' ? l : f);
+    // 字型名稱：中文介面用中文名，英文介面用字型本來的英文名；自己上傳的一律用檔名
+    const fontLabel = (f, l) => (lang() === 'zh-tw' || customFont(f) ? l : f);
     const ov = overlay(`
         <canvas class="taiwanreporter_canvas"></canvas>
         <img class="taiwanreporter_saveimg" style="display:none" alt="${T('name')}">
         <div class="taiwanreporter_hint">${T('hint')}</div>
         <div class="taiwanreporter_back_row taiwanreporter_buttons" style="display:none"><div class="menu_button taiwanreporter_back">${T('back')}</div></div>
         <div class="taiwanreporter_edit">
+        <div class="taiwanreporter_row"><div class="menu_button taiwanreporter_break_btn" title="${T('breakHint')}">${T('breakEdit')}</div></div>
+        <textarea class="text_pole taiwanreporter_text" rows="3" placeholder="${T('breakHint')}" style="display:none"></textarea>
         <div class="taiwanreporter_row taiwanreporter_toggles">
             ${Object.keys(LAYOUTS).map(key => `<div class="menu_button taiwanreporter_toggle" data-layout="${key}">${T('layouts')[key]}</div>`).join('')}
             ${['light', 'mono', 'bold', 'flip'].map(k => `<div class="menu_button taiwanreporter_toggle" data-opt="${k}">${T(k)}</div>`).join('')}
         </div>
         <div class="taiwanreporter_row taiwanreporter_selects">
             <span>${T('font')}</span>
-            <select class="text_pole taiwanreporter_font">${FONTS.map(([f, l]) => `<option value="${f}">${fontLabel(f, l)}</option>`).join('')}</select>
+            <select class="text_pole taiwanreporter_font">${allFonts().map(([f, l]) => `<option value="${f}">${fontLabel(f, l)}</option>`).join('')}</select>
             <span>${T('theme')}</span>
             <select class="text_pole taiwanreporter_theme">${Object.keys(THEMES).map(key => `<option value="${key}">${T('themes')[key]}</option>`).join('')}</select>
         </div>
@@ -445,7 +497,7 @@ async function openCard(quote, mesEl) {
         quote, name, model, img: await loadImage(url), gray: null,
         opts: { ...saved }, view: { x: 0, y: 0, zoom: 1 }, tx: 0, ty: 0, scale: 1, vals: freshVals(),
     };
-    if (!FONTS.some(([f]) => f === st.opts.font)) st.opts.font = FONTS[0][0];
+    if (!allFonts().some(([f]) => f === st.opts.font)) st.opts.font = FONTS[0][0];
 
     // 預覽照版型比例縮到畫面內
     const fit = () => {
@@ -477,7 +529,7 @@ async function openCard(quote, mesEl) {
     const render = () => {
         draw(canvas, st);
         fit();
-        const key = `${st.opts.font}|${st.opts.bold}|${st.opts.footer}|${lang()}`;
+        const key = `${st.opts.font}|${st.opts.bold}|${st.opts.footer}|${lang()}|${st.quote}`;
         if (key !== fontKey) {
             fontKey = key;
             ensureFont(st.opts.font, `${st.quote}${st.name}${footerText(st)}`, st.opts.bold).then(() => { if (fontKey === key) draw(canvas, st); });
@@ -496,6 +548,44 @@ async function openCard(quote, mesEl) {
         setOpt('layout', b.dataset.layout);
     }));
     ov.querySelectorAll('[data-opt]').forEach(b => b.addEventListener('click', () => setOpt(b.dataset.opt, !st.opts[b.dataset.opt])));
+    // 台詞框只能加、刪換行，字一個都不能動：打字、刪字、貼上都退回上一個樣子
+    const textBox = ov.querySelector('.taiwanreporter_text');
+    textBox.value = quote;
+    // 「換行編輯」按一下打開台詞框、再按一下收起來
+    const breakBtn = ov.querySelector('.taiwanreporter_break_btn');
+    breakBtn.addEventListener('click', () => {
+        const open = textBox.style.display === 'none';
+        textBox.style.display = open ? '' : 'none';
+        breakBtn.classList.toggle('active', open);
+        if (open) textBox.focus();
+    });
+    let last = { value: quote, start: 0, end: 0 };
+    const remember = () => { last = { value: textBox.value, start: textBox.selectionStart, end: textBox.selectionEnd }; };
+    const checkText = () => {
+        const fixed = onlyBreaks(quote, textBox.value);
+        if (fixed === null) {
+            textBox.value = last.value;
+            textBox.setSelectionRange(last.start, last.end);
+            return;
+        }
+        if (fixed !== textBox.value) {
+            // 多打的空白拿掉後，游標放回同一個字後面
+            const pos = textBox.selectionStart;
+            const nth = textBox.value.slice(0, pos).replace(/\s/g, '').length;
+            textBox.value = fixed;
+            let at = 0;
+            for (let n = 0; n < nth; at++) if (!/\s/.test(fixed[at])) n++;
+            textBox.setSelectionRange(at, at);
+        }
+        remember();
+        st.quote = fixed;
+        st.manualBreaks = true;
+        render();
+    };
+    ['keyup', 'pointerup', 'select', 'focus'].forEach(ev => textBox.addEventListener(ev, () => { if (textBox.value === last.value) remember(); }));
+    // 注音、拼音選字中不要動它，選完字再檢查（選出來的字一樣會被退回）
+    textBox.addEventListener('input', e => { if (!e.isComposing) checkText(); });
+    textBox.addEventListener('compositionend', checkText);
     ov.querySelector('.taiwanreporter_font').addEventListener('change', e => setOpt('font', e.target.value));
     ov.querySelector('.taiwanreporter_theme').addEventListener('change', e => setOpt('theme', e.target.value));
     ov.querySelector('.taiwanreporter_footer').addEventListener('change', e => setOpt('footer', Number(e.target.value)));
@@ -679,6 +769,11 @@ settingsPanel?.insertAdjacentHTML('beforeend', `
                     <option value="en">English</option>
                 </select>
             </label>
+            <b class="taiwanreporter_s_fonts"></b>
+            <div class="taiwanreporter_s_font_list"></div>
+            <div class="menu_button taiwanreporter_s_upload"></div>
+            <input type="file" class="taiwanreporter_s_file" accept=".ttf,.otf,.woff,.woff2" hidden>
+            <small class="taiwanreporter_s_upload_hint"></small>
         </div>
     </div>
 </div>`);
@@ -691,6 +786,10 @@ function applySettings() {
     set('.taiwanreporter_s_enable', T('enable'));
     set('.taiwanreporter_s_language', T('language'));
     set('#taiwanreporter_lang option[value="auto"]', T('langAuto'));
+    set('.taiwanreporter_s_fonts', T('fonts'));
+    set('.taiwanreporter_s_upload', T('upload'));
+    set('.taiwanreporter_s_upload_hint', T('uploadHint'));
+    renderFontList();
     selBtn.title = T('send');
     // 包含訊息範本裡那一顆，之後新出現的訊息就會帶著新的提示文字
     document.querySelectorAll('.taiwanreporter_mes_btn').forEach(el => { el.title = T('send'); });
@@ -707,3 +806,90 @@ if (enabledBox && langSelect) {
     langSelect.addEventListener('change', () => { saved.lang = langSelect.value; saveSettingsDebounced(); applySettings(); });
 }
 applySettings();
+
+// ---------- 自訂字體：上傳到 ST 的檔案區（user/files），設定裡只記名字和位置 ----------
+
+function renderFontList() {
+    const box = document.querySelector('.taiwanreporter_s_font_list');
+    if (!box) return;
+    box.innerHTML = '';
+    if (!saved.customFonts.length) {
+        box.innerHTML = '<small class="taiwanreporter_s_empty"></small>';
+        box.firstChild.textContent = T('noFonts');
+        return;
+    }
+    for (const f of saved.customFonts) {
+        const row = document.createElement('div');
+        row.className = 'taiwanreporter_s_font_row';
+        row.innerHTML = '<span></span><div class="menu_button fa-solid fa-trash-can"></div>';
+        row.querySelector('span').textContent = f.label;
+        row.querySelector('.menu_button').title = T('remove');
+        row.querySelector('.menu_button').addEventListener('click', () => removeFont(f));
+        box.appendChild(row);
+    }
+}
+
+const fileToBase64 = file => new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result).split(',')[1]);
+    r.onerror = reject;
+    r.readAsDataURL(file);
+});
+
+async function uploadFont(file) {
+    const btn = document.querySelector('.taiwanreporter_s_upload');
+    const ext = (file.name.match(/\.(ttf|otf|woff2?)$/i)?.[1] || '').toLowerCase();
+    if (!ext) return toastr.error(T('badFont'));
+    const family = `TRFont_${Date.now()}`;
+    // 先在瀏覽器裡試載一次，不是字體的檔案就不上傳
+    try {
+        const face = new FontFace(family, await file.arrayBuffer());
+        await face.load();
+    } catch {
+        return toastr.error(T('badFont'));
+    }
+    btn.textContent = T('uploading');
+    btn.classList.add('disabled');
+    try {
+        const res = await fetch('/api/files/upload', {
+            method: 'POST',
+            headers: SillyTavern.getContext().getRequestHeaders(),
+            body: JSON.stringify({ name: `taiwanreporter_${family}.${ext}`, data: await fileToBase64(file) }),
+        });
+        if (!res.ok) throw new Error(await res.text() || res.status);
+        const { path } = await res.json();
+        const label = file.name.replace(/\.[^.]+$/, '');
+        saved.customFonts.push({ family, label, path: `/${String(path).replace(/^\/+/, '')}` });
+        saveSettingsDebounced();
+        toastr.success(T('uploaded') + label);
+    } catch (e) {
+        toastr.error(T('uploadFail') + (e?.message || e));
+    } finally {
+        btn.classList.remove('disabled');
+        applySettings();
+    }
+}
+
+async function removeFont(f) {
+    const { callGenericPopup, POPUP_TYPE, getRequestHeaders } = SillyTavern.getContext();
+    if (!await callGenericPopup(T('removeAsk')(f.label), POPUP_TYPE.CONFIRM)) return;
+    // 檔案已經不在也照樣從清單拿掉
+    await fetch('/api/files/delete', {
+        method: 'POST',
+        headers: getRequestHeaders(),
+        body: JSON.stringify({ path: f.path.replace(/^\//, '') }),
+    }).catch(() => {});
+    saved.customFonts = saved.customFonts.filter(x => x !== f);
+    if (saved.font === f.family) saved.font = FONTS[0][0];
+    saveSettingsDebounced();
+    toastr.info(T('removed') + f.label);
+    renderFontList();
+}
+
+document.querySelector('.taiwanreporter_s_upload')?.addEventListener('click', () => document.querySelector('.taiwanreporter_s_file').click());
+document.querySelector('.taiwanreporter_s_file')?.addEventListener('change', e => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (file) uploadFont(file);
+});
+renderFontList();

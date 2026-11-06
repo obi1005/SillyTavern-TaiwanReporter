@@ -21,9 +21,10 @@ https://github.com/obi1005/SillyTavern-TaiwanReporter
 
 做卡的面板裡可以調：
 
+- **換行編輯**：按下去會展開台詞框，可以自己決定在哪裡換行，字本身不能改。在想斷的地方按換行；如果某一行太長，字會自動縮小，讓每一行都照你斷的排。再按一次收起來
 - **版型**：直幅（1080×1920）、橫幅（1600×900）、卡片（1080×1440）
 - **選項**：白底、黑白、粗體、左右側（只有橫幅有，照片換到另一邊）
-- **字體**：思源黑體、思源宋體、霞鶩文楷、芫荽、昭源黑體、昭源宋體、仙人掌明體、粉圓
+- **字體**：思源黑體、思源宋體、霞鶩文楷、芫荽、昭源黑體、昭源宋體、仙人掌明體、粉圓，以及自己上傳的字體
 - **色調**：原色、夕陽、森林、緋月、午夜紫、深海、舊照片、櫻花、棉花糖
 - **標語**：印在圖片最下面的一行小字，位置和大小固定
   - 沒有這樣說過。
@@ -46,6 +47,7 @@ https://github.com/obi1005/SillyTavern-TaiwanReporter
 
 - **啟用**：關掉後，反白不會出現圖示，訊息選單也不會有按鈕。
 - **語言**：跟著 ST、繁體中文、English。選「跟著 ST」時，ST 介面是中文就用中文，其他語言一律英文。
+- **自訂字體**：按「上傳字體」選 TTF、OTF、WOFF 或 WOFF2 檔，就會加到做卡面板「字體」清單的最後面。字體檔存在 ST 的 `data/<使用者>/user/files/`；按垃圾桶可以刪除。
 
 ## 配合主題的顏色
 
@@ -77,9 +79,10 @@ https://github.com/obi1005/SillyTavern-TaiwanReporter
 Turns a line from your SillyTavern chat into a quote card, with the speaker's avatar as the background.
 
 - **Select text** in a message and tap the icon that appears above it, or open a message's **⋯** menu and pick one or more sentences.
+- Tap **Line breaks** to open the quote box and choose where the lines break (the words themselves can’t be edited); the text shrinks so each of your lines fits.
 - Three layouts (portrait, wide, card), light background, black & white, bold, flip, 8 fonts, 9 tints, and an optional tagline at the bottom.
 - **Save to Photos** uses the share sheet over HTTPS; otherwise the finished image is shown so you can long-press it and choose “Save to Photos”.
-- In the extension settings you can turn it off or switch the language (Follow ST / 繁體中文 / English).
+- In the extension settings you can turn it off, switch the language (Follow ST / 繁體中文 / English), and upload your own fonts (TTF, OTF, WOFF, WOFF2). Uploaded fonts are stored in SillyTavern’s `data/<user>/user/files/` and appear at the end of the Font list.
 - Everything is drawn in the browser. Nothing is sent anywhere except font requests to Google Fonts.
 
 ## 授權

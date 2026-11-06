@@ -56,6 +56,23 @@
     gap: 8px;
 }
 
+.taiwanreporter_s_font_row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.taiwanreporter_s_font_row span {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.taiwanreporter_s_font_row .menu_button { margin: 0; }
+.taiwanreporter_s_upload { width: auto; margin: 0; }
+.taiwanreporter_s_upload_hint, .taiwanreporter_s_empty { opacity: 0.7; }
+
 .taiwanreporter_s_lang_row select {
     flex: 1;
     margin: 0;
@@ -163,7 +180,8 @@
     gap: 4px;
 }
 
-.taiwanreporter_toggles .menu_button {
+.taiwanreporter_toggles .menu_button,
+.taiwanreporter_row .taiwanreporter_break_btn {
     padding: 3px 2px;
     font-size: 0.9em;
 }
@@ -206,10 +224,23 @@
 }
 
 /* 主題常對 .menu_button 的底色下 !important，選中狀態也要 !important 才看得出來 */
-.taiwanreporter_toggle.active {
+.taiwanreporter_toggle.active,
+.taiwanreporter_break_btn.active {
     background: var(--tr-active, rgba(180, 170, 230, 0.4)) !important;
     border-color: var(--tr-active-border, rgba(200, 190, 245, 0.95)) !important;
     filter: none;
+}
+
+/* 台詞框：按「換行編輯」才展開，只能換行 */
+.taiwanreporter_text {
+    width: 100%;
+    box-sizing: border-box;
+    margin: 0;
+    min-height: 3.6em;
+    field-sizing: content;
+    max-height: 9em;
+    resize: vertical;
+    font-size: 16px; /* 小於 16px 時 iPhone 一點下去會自動放大畫面 */
 }
 
 .taiwanreporter_slider {
